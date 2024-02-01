@@ -13,6 +13,7 @@ use std::fs::File;
 use std::io::{Error, ErrorKind};
 use std::process::{Command, Stdio};
 use std::time::Instant;
+use sys_info::mem_info;
 
 /// Get current directory and return it as a String
 fn get_root_dir() -> Result<String, Error> {
@@ -152,6 +153,14 @@ fn generate_proof_from_trace(
     StarkProof<Stark252PrimeField, Stark252PrimeField>,
     PublicInputs,
 )> {
+    // Get initial memory usage
+    let initial_mem = match mem_info() {
+        Ok(mem) => mem,
+        Err(e) => {
+            panic!("Failed to get initial memory info: {:?}", e);
+        }
+    };
+
     // ## Generating the prover args
     let timer = Instant::now();
     let Ok((main_trace, pub_inputs)) =
@@ -174,6 +183,18 @@ fn generate_proof_from_trace(
     };
     println!("  Time spent in proving: {:?} \n", timer.elapsed());
 
+    // Get final memory usage
+    let final_mem = match mem_info() {
+        Ok(mem) => mem,
+        Err(e) => {
+            panic!("Failed to get final memory info: {:?}", e);
+        }
+    };
+
+    // Calculate the memory usage difference
+    let memory_usage = (final_mem.total - final_mem.free) - (initial_mem.total - initial_mem.free);
+    println!("Memory Usage Difference: {} KB", memory_usage);
+
     Some((proof, pub_inputs))
 }
 
@@ -182,11 +203,31 @@ fn verify_proof(
     pub_inputs: PublicInputs,
     proof_options: &ProofOptions,
 ) -> bool {
-    let timer = Instant::now();
+    // Get initial memory usage
+    let initial_mem = match mem_info() {
+        Ok(mem) => mem,
+        Err(e) => {
+            panic!("Failed to get initial memory info: {:?}", e);
+        }
+    };
+
+    let timer: Instant = Instant::now();
 
     println!("Verifying ...");
     let proof_verified = verify_cairo_proof(&proof, &pub_inputs, proof_options);
     println!("  Time spent in verifying: {:?} \n", timer.elapsed());
+
+    // Get final memory usage
+    let final_mem = match mem_info() {
+        Ok(mem) => mem,
+        Err(e) => {
+            panic!("Failed to get final memory info: {:?}", e);
+        }
+    };
+
+    // Calculate the memory usage difference
+    let memory_usage = (final_mem.total - final_mem.free) - (initial_mem.total - initial_mem.free);
+    println!("Memory Usage Difference: {} KB", memory_usage);
 
     if proof_verified {
         println!("Verification succeeded");
